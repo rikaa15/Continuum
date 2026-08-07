@@ -15,7 +15,7 @@ import { notFound, useParams } from "next/navigation";
 import { useProfile } from "@/components/profile-provider";
 import { unknown } from "@/lib/domain/profile";
 import { evaluateRule } from "@/lib/rules/evaluate";
-import { studentPolicyRule } from "@/lib/rules/fixtures/student-policy";
+import { getMonitoringRule } from "@/lib/rules/fixtures/monitoring";
 
 const states = {
   affected: {
@@ -43,11 +43,12 @@ export default function AlertDetailPage() {
   const { ready, profile, everosSynced, saveProfile } = useProfile();
   const [explanation, setExplanation] = useState<string | null>(null);
 
-  if (params.ruleId !== studentPolicyRule.ruleId) notFound();
+  const rule = getMonitoringRule(params.ruleId);
+  if (!rule) notFound();
 
   const result = useMemo(
-    () => (ready ? evaluateRule(studentPolicyRule, profile) : null),
-    [ready, profile],
+    () => (ready ? evaluateRule(rule, profile) : null),
+    [ready, profile, rule],
   );
 
   useEffect(() => {
@@ -78,10 +79,10 @@ export default function AlertDetailPage() {
     <div className="px-6 py-9 md:px-12">
       <div className="mx-auto max-w-5xl">
         <Link
-          href="/runway"
+          href="/alerts"
           className="inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-brand"
         >
-          <ArrowLeft className="size-4" /> Back to runway
+          <ArrowLeft className="size-4" /> Back to alerts
         </Link>
 
         <div className={`mt-7 rounded-3xl border p-7 ${state.color}`}>
@@ -94,14 +95,20 @@ export default function AlertDetailPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.18em]">
                   {state.eyebrow}
                 </p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight">{state.title}</h1>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+                  {rule.title}
+                </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-6 opacity-80">
-                  {explanation ?? result.recommendedAction}
+                  {state.title} {explanation ?? result.recommendedAction}
                 </p>
               </div>
             </div>
             <span className="rounded-full bg-white/65 px-3 py-1.5 text-xs font-semibold">
-              {result.decision.replace("_", " ")}
+              {result.decision === "not_affected"
+                ? "noise / no action"
+                : result.decision === "needs_review"
+                  ? "needs facts"
+                  : rule.responseKind}
             </span>
           </div>
         </div>
@@ -144,8 +151,23 @@ export default function AlertDetailPage() {
                 Your next step
               </p>
               <p className="mt-3 text-lg font-semibold">{result.recommendedAction}</p>
+              <div className="mt-5 rounded-xl bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+                  No-regret move
+                </p>
+                <p className="mt-2 text-sm leading-6">{rule.noRegretAction}</p>
+              </div>
+              <div className="mt-3 rounded-xl border p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+                  Transition provision to verify
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  {rule.transitionSummary}
+                </p>
+              </div>
               <p className="mt-3 text-sm text-muted">Escalate to: {result.escalationTarget}</p>
-              {result.decision === "affected" && (
+              {result.decision === "affected" &&
+                rule.ruleId === "stem-opt-employer-check-2026" && (
                 <button
                   className="mt-5 rounded-xl border px-4 py-2.5 text-xs font-semibold hover:border-brand/30"
                   onClick={() => {
@@ -173,28 +195,54 @@ export default function AlertDetailPage() {
               </p>
               <dl className="mt-5 space-y-4 text-sm">
                 <div>
+                  <dt className="text-xs text-muted">Change channel</dt>
+                  <dd className="mt-1 font-medium capitalize">{rule.channel}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted">Expected lead time</dt>
+                  <dd className="mt-1 font-medium">{rule.leadTime}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted">Reversibility</dt>
+                  <dd className="mt-1 font-medium capitalize">
+                    {rule.reversibility.replace("_", " ")}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted">Monitoring cadence</dt>
+                  <dd className="mt-1 font-medium capitalize">
+                    {rule.monitoringCadence}
+                  </dd>
+                </div>
+                <div>
                   <dt className="text-xs text-muted">Stage</dt>
-                  <dd className="mt-1 font-medium capitalize">{studentPolicyRule.stage}</dd>
+                  <dd className="mt-1 font-medium capitalize">{rule.stage}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-muted">As of</dt>
-                  <dd className="mt-1 font-medium">{studentPolicyRule.asOfDate}</dd>
+                  <dd className="mt-1 font-medium">{rule.asOfDate}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-muted">Rule version</dt>
-                  <dd className="mt-1 font-mono text-xs">{studentPolicyRule.version}</dd>
+                  <dd className="mt-1 font-mono text-xs">{rule.version}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-muted">Review status</dt>
                   <dd className="mt-1 font-medium">
-                    {studentPolicyRule.reviewedByCounsel
+                    {rule.reviewedByCounsel
                       ? "Counsel reviewed"
                       : "Not counsel reviewed"}
                   </dd>
                 </div>
               </dl>
+              {rule.isDemonstrationFixture && (
+                <p className="mt-5 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+                  Demonstration fixture. It is not a verified current-law
+                  assertion and has not been reviewed by counsel.
+                </p>
+              )}
               <a
-                href={studentPolicyRule.sourceUrl}
+                href={rule.sourceUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="mt-6 inline-flex items-center gap-1 text-xs font-semibold text-brand"
@@ -210,7 +258,7 @@ export default function AlertDetailPage() {
                   : "Profile facts ready"}
               </p>
               <p className="mt-2 text-xs leading-5 text-muted">
-                Profile v{profile.profileVersion} · Rule v{studentPolicyRule.version}.
+                Profile v{profile.profileVersion} · Rule v{rule.version}.
                 This check is educational and is not legal advice.
               </p>
             </section>

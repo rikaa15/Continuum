@@ -3,14 +3,18 @@ import { NextResponse } from "next/server";
 import { explainDecision } from "@/lib/ai/explain";
 import { profileSchema } from "@/lib/domain/profile";
 import { decisionResultSchema } from "@/lib/domain/rules";
-import { studentPolicyRule } from "@/lib/rules/fixtures/student-policy";
+import { getMonitoringRule } from "@/lib/rules/fixtures/monitoring";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const profile = profileSchema.parse(body.profile);
     const result = decisionResultSchema.parse(body.result);
-    const explanation = await explainDecision(result, studentPolicyRule, profile);
+    const rule = getMonitoringRule(result.ruleId);
+    if (!rule || rule.version !== result.ruleVersion) {
+      throw new Error("Unknown or mismatched monitoring rule");
+    }
+    const explanation = await explainDecision(result, rule, profile);
     return NextResponse.json({
       ok: true,
       explanation: explanation.explanation,

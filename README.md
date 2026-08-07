@@ -11,15 +11,15 @@ explain the result.
 ## Architecture
 
 - **Next.js 16 / TypeScript** — product UI, server actions, and orchestration.
-- **EverOS v2** — persistent profile memory across sessions.
+- **EverOS v2** — optional structured-profile mirror and explicit reconciliation.
 - **TypeScript rule engine** — three-state legal relevance decisions.
 - **OpenAI** — constrained plain-language rewriting after a decision.
 - **Snowflake** — measured token ledger and economics aggregation.
 
 EverOS is never treated as proof that an absent fact is false. A canonical,
-versioned profile payload is retrieved and validated with Zod. The rule engine
-declares every required field; missing or invalid required facts become
-`needs_review`.
+versioned profile payload is validated with Zod before mirroring or explicit
+restore. The rule engine declares every required field; missing or invalid
+required facts become `needs_review`.
 
 ## Local setup
 
@@ -45,12 +45,14 @@ powers explanations. Snowflake remains optional and currently projected.
 Continuum uses the hosted unified v2 flow:
 
 1. `POST /api/v2/memory/add`
-2. `POST /api/v2/memory/flush`
-3. `POST /api/v2/memory/search`
+2. `POST /api/v2/memory/search`
 
 The browser profile is the demo source of truth. A validated, versioned snapshot
 is optionally mirrored to EverOS so the memory integration remains visible
-without making semantic retrieval authoritative for legal decisions.
+without making semantic retrieval authoritative for legal decisions. The
+Profile page can explicitly compare the local profile with the latest EverOS
+snapshot and asks before restoring a newer remote version. There is no silent
+overwrite and no cross-device account recovery without authentication.
 
 ### Snowflake
 

@@ -3,6 +3,13 @@ import type { ImmigrationProfile, ProfileField } from "@/lib/domain/profile";
 
 export type PredicateRole = "exclusion" | "applicability";
 export type PredicateOutcome = true | false | "unknown";
+export type ChangeChannel =
+  | "statute"
+  | "rulemaking"
+  | "guidance"
+  | "litigation"
+  | "operations";
+export type AlertResponseKind = "deadline" | "reprioritization";
 
 export type RulePredicate = {
   id: string;
@@ -24,6 +31,13 @@ export type RuleFixture = {
   sourceTitle: string;
   sourceUrl: string;
   litigationStatus: string;
+  channel: ChangeChannel;
+  responseKind: AlertResponseKind;
+  leadTime: string;
+  reversibility: "low" | "moderate" | "high" | "very_high";
+  transitionSummary: string;
+  noRegretAction: string;
+  monitoringCadence: "daily" | "weekly" | "monthly";
   reviewedByCounsel: boolean;
   isDemonstrationFixture: boolean;
   actionTemplate: string;

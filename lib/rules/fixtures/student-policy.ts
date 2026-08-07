@@ -13,6 +13,15 @@ export const studentPolicyRule: RuleFixture = {
   sourceUrl:
     "https://studyinthestates.dhs.gov/stem-opt-hub/additional-resources/stem-opt-extension-overview",
   litigationStatus: "No litigation status is asserted by this demonstration fixture.",
+  channel: "operations",
+  responseKind: "deadline",
+  leadTime: "Check before accepting or changing STEM OPT employment",
+  reversibility: "high",
+  transitionSummary:
+    "Employer eligibility and training-plan facts can change when employment changes.",
+  noRegretAction:
+    "Keep current E-Verify confirmation and the signed training plan with your employment records.",
+  monitoringCadence: "monthly",
   reviewedByCounsel: false,
   isDemonstrationFixture: true,
   actionTemplate:

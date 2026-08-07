@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useProfile } from "@/components/profile-provider";
+import { getHistoryCompletion } from "@/lib/profile/completeness";
 import { evaluateRule } from "@/lib/rules/evaluate";
 import { studentPolicyRule } from "@/lib/rules/fixtures/student-policy";
 
@@ -51,13 +52,16 @@ export default function RunwayPage() {
   const deadline = valueOf(profile.nextKnownDeadline);
   const travel = valueOf(profile.plannedTravel);
   const completed = profile.evidenceCriteria.filter((item) => item.state === "met").length;
+  const history = getHistoryCompletion(profile);
 
   return (
     <div className="px-6 py-9 md:px-12">
       <div className="mx-auto max-w-6xl">
         <header className="flex flex-wrap items-start justify-between gap-5">
           <div>
-            <p className="text-sm text-muted">Friday, August 7</p>
+            <p className="text-sm text-muted">
+              {format(new Date(), "EEEE, MMMM d")}
+            </p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight">
               Welcome back, {profile.displayName.split(" ")[0]}.
             </h1>
@@ -76,7 +80,7 @@ export default function RunwayPage() {
                 Current runway
               </p>
               <span className="rounded-full bg-white/10 px-3 py-1 text-xs">
-                History {profile.historyCompleteness.replace("_", " ")}
+                History {history.status.replace("_", " ")}
               </span>
             </div>
             <div className="mt-8 flex flex-wrap items-end justify-between gap-6">
@@ -91,16 +95,25 @@ export default function RunwayPage() {
                 </p>
               </div>
               <Link
-                href="/profile"
+                href="/history"
                 className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#183e35] hover:bg-emerald-50"
               >
-                Complete history <ArrowRight className="size-4" />
+                {history.nextArea
+                  ? `Review ${history.nextArea.label.toLowerCase()}`
+                  : "Review history"}{" "}
+                <ArrowRight className="size-4" />
               </Link>
             </div>
             <div className="mt-8 h-1.5 overflow-hidden rounded-full bg-white/10">
-              <div className="h-full w-[68%] rounded-full bg-[#8fd1b8]" />
+              <div
+                className="h-full rounded-full bg-[#8fd1b8]"
+                style={{ width: `${history.percentage}%` }}
+              />
             </div>
-            <p className="mt-2 text-xs text-emerald-100/55">Profile is 68% reviewed</p>
+            <p className="mt-2 text-xs text-emerald-100/55">
+              {history.reviewed} of {history.total} history areas reviewed ·{" "}
+              {history.percentage}%
+            </p>
           </div>
 
           <div className="rounded-3xl border bg-white p-6 shadow-sm">

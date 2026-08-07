@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -22,6 +22,7 @@ import {
   unknown,
   type ImmigrationProfile,
 } from "@/lib/domain/profile";
+import { getHistoryCompletion } from "@/lib/profile/completeness";
 import { createLocalUserId } from "@/lib/profile/browser-store";
 
 const inputClass =
@@ -57,10 +58,17 @@ function dateValue(formData: FormData, name: string, reason: string) {
   return value ? known(value, "user") : unknown(reason);
 }
 
+function fieldValue<T>(
+  field: { state: "known"; value: T } | { state: "unknown" },
+) {
+  return field.state === "known" ? field.value : undefined;
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
-  const { saveProfile } = useProfile();
+  const { saveProfile, profile: activeProfile, isDemoProfile } = useProfile();
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [physicalLocation, setPhysicalLocation] = useState<
     "" | "IN_US" | "OUTSIDE_US"
   >("");
@@ -68,6 +76,44 @@ export default function OnboardingPage() {
   const [currentStatus, setCurrentStatus] = useState("");
   const [f1Stage, setF1Stage] = useState("ENROLLED");
   const [pendingCases, setPendingCases] = useState<string[]>([]);
+
+  useEffect(() => {
+    const shouldEdit =
+      new URLSearchParams(window.location.search).get("edit") === "1" &&
+      !isDemoProfile;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setEditing(shouldEdit);
+      if (!shouldEdit) return;
+
+      setPhysicalLocation(
+        activeProfile.physicalLocation.state === "known"
+          ? activeProfile.physicalLocation.value
+          : "",
+      );
+      setCurrentBasis(
+        activeProfile.currentBasis.state === "known"
+          ? activeProfile.currentBasis.value
+          : "",
+      );
+      setCurrentStatus(
+        activeProfile.currentStatus.state === "known"
+          ? activeProfile.currentStatus.value
+          : "",
+      );
+      setF1Stage(
+        activeProfile.f1Stage.state === "known" &&
+          activeProfile.f1Stage.value !== "NOT_APPLICABLE"
+          ? activeProfile.f1Stage.value
+          : "ENROLLED",
+      );
+      setPendingCases(activeProfile.pendingCases.map((item) => item.type));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProfile, isDemoProfile]);
 
   const inUS = physicalLocation === "IN_US";
   const outsideUS = physicalLocation === "OUTSIDE_US";
@@ -86,8 +132,12 @@ export default function OnboardingPage() {
   const goalOptions = useMemo(() => {
     const options = [
       {
+        value: "STILL_EXPLORING",
+        label: "Still exploring / not sure yet",
+      },
+      {
         value: "MAINTAIN_STATUS",
-        label: "Maintain or clarify my current situation",
+        label: "Maintain my current situation",
       },
     ];
 
@@ -216,19 +266,74 @@ export default function OnboardingPage() {
         }
       : null;
     const goal = String(
-      formData.get("immediateGoal") ?? "MAINTAIN_STATUS",
+      formData.get("immediateGoal") ?? "STILL_EXPLORING",
     ) as
+      | "STILL_EXPLORING"
       | "MAINTAIN_STATUS"
       | "STEM_EXTENSION"
       | "H1B_TRANSITION"
       | "EB2_NIW";
+    const citizenshipCountries = String(
+      formData.get("citizenshipCountries") ?? "",
+    )
+      .split(",")
+      .map((country) => country.trim())
+      .filter(Boolean)
+      .slice(0, 4);
+    const maritalStatus = String(formData.get("maritalStatus") ?? "");
+    const dependentCount = String(formData.get("dependentCount") ?? "");
+    const baseProfile = editing ? activeProfile : personaA;
+    const historyReview = {
+      ...(editing
+        ? activeProfile.historyReview
+        : {
+            identity: "not_started" as const,
+            currentSituation: "not_started" as const,
+            statusHistory: "not_started" as const,
+            travelHistory: "not_started" as const,
+            petitionsAndNotices: "not_started" as const,
+            family: "not_started" as const,
+          }),
+      identity: "reviewed" as const,
+      currentSituation: "reviewed" as const,
+      family: "reviewed" as const,
+    };
 
-    const profile: ImmigrationProfile = {
-      ...personaA,
-      userId: createLocalUserId(),
+    const nextProfile: ImmigrationProfile = {
+      ...baseProfile,
+      userId: editing ? activeProfile.userId : createLocalUserId(),
       displayName: String(formData.get("displayName") || "Continuum user"),
-      profileVersion: 1,
+      profileVersion: editing ? activeProfile.profileVersion + 1 : 1,
       updatedAt: new Date().toISOString(),
+      citizenshipCountries: citizenshipCountries.length
+        ? known(citizenshipCountries, "user")
+        : unknown("Reviewed; user chose to add citizenship later"),
+      dateOfBirth: dateValue(
+        formData,
+        "dateOfBirth",
+        "Reviewed; user chose to add date of birth later",
+      ),
+      countryOfBirth: editing
+        ? activeProfile.countryOfBirth
+        : unknown("Not part of the initial assessment"),
+      cityOfBirth: editing
+        ? activeProfile.cityOfBirth
+        : unknown("Not part of the initial assessment"),
+      maritalStatus: maritalStatus
+        ? known(
+            maritalStatus as
+              | "SINGLE"
+              | "MARRIED"
+              | "SEPARATED"
+              | "DIVORCED"
+              | "WIDOWED"
+              | "OTHER",
+            "user",
+          )
+        : unknown("Reviewed; user chose to add marital status later"),
+      dependentCount: dependentCount
+        ? known(Number(dependentCount), "user")
+        : unknown("Reviewed; user chose to add dependents later"),
       physicalLocation: known(location, "user"),
       currentBasis:
         inUS && currentBasis
@@ -276,6 +381,7 @@ export default function OnboardingPage() {
         "No next deadline was provided",
       ),
       historyCompleteness: "incomplete",
+      historyReview,
       evidenceCriteria: [
         {
           id: "basis",
@@ -295,8 +401,13 @@ export default function OnboardingPage() {
           state: "met",
         },
       ],
-      historyEvents: [],
+      historyEvents: editing ? activeProfile.historyEvents : [],
     };
+    const completion = getHistoryCompletion(nextProfile);
+    const profile = {
+      ...nextProfile,
+      historyCompleteness: completion.status,
+    } satisfies ImmigrationProfile;
 
     await saveProfile(profile);
     router.push("/runway");
@@ -342,6 +453,7 @@ export default function OnboardingPage() {
         </div>
 
         <form
+          key={editing ? activeProfile.updatedAt : "new-profile"}
           className="mt-8 space-y-7 rounded-3xl border bg-white p-6 shadow-sm md:p-8"
           onSubmit={(event) => {
             event.preventDefault();
@@ -355,8 +467,91 @@ export default function OnboardingPage() {
               name="displayName"
               placeholder="First name"
               className={inputClass}
+              defaultValue={editing ? activeProfile.displayName : ""}
             />
           </label>
+
+          <fieldset className="rounded-2xl border bg-slate-50 p-5">
+            <legend className="px-2 text-sm font-semibold">
+              A few identity and family facts
+            </legend>
+            <p className="mb-4 text-xs leading-5 text-muted">
+              Citizenship can affect nationality-specific pathways such as TN
+              or H-1B1. Date of birth and family details are optional and can be
+              added later.
+            </p>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <label className="sm:col-span-2">
+                <span className="text-sm font-semibold">
+                  Country or countries of citizenship
+                </span>
+                <input
+                  name="citizenshipCountries"
+                  placeholder="For example: Canada, Mexico"
+                  className={inputClass}
+                  defaultValue={
+                    editing
+                      ? fieldValue(activeProfile.citizenshipCountries)?.join(
+                          ", ",
+                        )
+                      : ""
+                  }
+                />
+                <span className="mt-1.5 block text-xs text-muted">
+                  Separate multiple citizenships with commas.
+                </span>
+              </label>
+              <label>
+                <span className="text-sm font-semibold">
+                  Date of birth (optional)
+                </span>
+                <input
+                  type="date"
+                  name="dateOfBirth"
+                  className={inputClass}
+                  defaultValue={
+                    editing ? fieldValue(activeProfile.dateOfBirth) : ""
+                  }
+                />
+              </label>
+              <label>
+                <span className="text-sm font-semibold">Marital status</span>
+                <select
+                  name="maritalStatus"
+                  className={inputClass}
+                  defaultValue={
+                    editing
+                      ? (fieldValue(activeProfile.maritalStatus) ?? "")
+                      : ""
+                  }
+                >
+                  <option value="">Prefer to add later</option>
+                  <option value="SINGLE">Single</option>
+                  <option value="MARRIED">Married</option>
+                  <option value="SEPARATED">Separated</option>
+                  <option value="DIVORCED">Divorced</option>
+                  <option value="WIDOWED">Widowed</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </label>
+              <label>
+                <span className="text-sm font-semibold">
+                  Number of dependents
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  max="20"
+                  name="dependentCount"
+                  placeholder="Add later"
+                  className={inputClass}
+                  defaultValue={
+                    editing ? fieldValue(activeProfile.dependentCount) : ""
+                  }
+                />
+              </label>
+            </div>
+          </fieldset>
 
           <fieldset>
             <legend className="text-sm font-semibold">
@@ -488,7 +683,14 @@ export default function OnboardingPage() {
                 <span className="text-sm font-semibold">
                   Classification before employment ended
                 </span>
-                <select required name="priorStatus" className={inputClass}>
+                <select
+                  required
+                  name="priorStatus"
+                  className={inputClass}
+                  defaultValue={
+                    editing ? (fieldValue(activeProfile.priorStatus) ?? "") : ""
+                  }
+                >
                   <option value="">Select prior classification</option>
                   {workerGraceStatuses.map(([value, label]) => (
                     <option key={value} value={value}>
@@ -506,6 +708,11 @@ export default function OnboardingPage() {
                   type="date"
                   name="employmentEndDate"
                   className={inputClass}
+                  defaultValue={
+                    editing
+                      ? fieldValue(activeProfile.employmentEndDate)
+                      : ""
+                  }
                 />
               </label>
             </div>
@@ -520,6 +727,11 @@ export default function OnboardingPage() {
                 required
                 name="targetClassification"
                 className={inputClass}
+                defaultValue={
+                  editing
+                    ? (fieldValue(activeProfile.targetClassification) ?? "")
+                    : ""
+                }
               >
                 <option value="">Select a target classification</option>
                 {supportedStatuses.map(([value, label]) => (
@@ -536,7 +748,14 @@ export default function OnboardingPage() {
               <span className="text-sm font-semibold">
                 Current authorized validity end date
               </span>
-              <input type="date" name="validUntil" className={inputClass} />
+              <input
+                type="date"
+                name="validUntil"
+                className={inputClass}
+                defaultValue={
+                  editing ? fieldValue(activeProfile.validUntil) : ""
+                }
+              />
             </label>
           )}
 
@@ -583,7 +802,13 @@ export default function OnboardingPage() {
                     <select
                       name={`${type}Status`}
                       className={inputClass}
-                      defaultValue="PENDING"
+                      defaultValue={
+                        editing
+                          ? (activeProfile.pendingCases.find(
+                              (item) => item.type === type,
+                            )?.status ?? "PENDING")
+                          : "PENDING"
+                      }
                     >
                       <option value="PENDING">Pending</option>
                       <option value="APPROVED">Approved</option>
@@ -605,7 +830,16 @@ export default function OnboardingPage() {
               <div className="grid gap-5 sm:grid-cols-2">
                 <label>
                   <span className="text-sm font-semibold">Adjustment basis</span>
-                  <select name="aosBasis" className={inputClass}>
+                  <select
+                    name="aosBasis"
+                    className={inputClass}
+                    defaultValue={
+                      editing && activeProfile.aosDetails
+                        ? (fieldValue(activeProfile.aosDetails.basis) ??
+                          "UNKNOWN")
+                        : "EMPLOYMENT"
+                    }
+                  >
                     <option value="EMPLOYMENT">Employment-based</option>
                     <option value="FAMILY">Family-based</option>
                     <option value="DIVERSITY">Diversity visa</option>
@@ -615,7 +849,16 @@ export default function OnboardingPage() {
                 </label>
                 <label>
                   <span className="text-sm font-semibold">Case stage</span>
-                  <select name="aosStage" className={inputClass}>
+                  <select
+                    name="aosStage"
+                    className={inputClass}
+                    defaultValue={
+                      editing && activeProfile.aosDetails
+                        ? (fieldValue(activeProfile.aosDetails.stage) ??
+                          "RECEIPT")
+                        : "RECEIPT"
+                    }
+                  >
                     <option value="RECEIPT">Receipt received</option>
                     <option value="BIOMETRICS">Biometrics</option>
                     <option value="RFE">RFE</option>
@@ -629,6 +872,11 @@ export default function OnboardingPage() {
                     type="date"
                     name="aosReceiptDate"
                     className={inputClass}
+                    defaultValue={
+                      editing && activeProfile.aosDetails
+                        ? fieldValue(activeProfile.aosDetails.receiptDate)
+                        : ""
+                    }
                   />
                 </label>
                 <label>
@@ -637,13 +885,27 @@ export default function OnboardingPage() {
                     type="date"
                     name="priorityDate"
                     className={inputClass}
+                    defaultValue={
+                      editing && activeProfile.aosDetails
+                        ? fieldValue(activeProfile.aosDetails.priorityDate)
+                        : ""
+                    }
                   />
                 </label>
                 <label>
                   <span className="text-sm font-semibold">
                     Adjustment EAD
                   </span>
-                  <select name="eadState" className={inputClass}>
+                  <select
+                    name="eadState"
+                    className={inputClass}
+                    defaultValue={
+                      editing && activeProfile.aosDetails
+                        ? (fieldValue(activeProfile.aosDetails.eadState) ??
+                          "UNKNOWN")
+                        : "UNKNOWN"
+                    }
+                  >
                     <option value="UNKNOWN">I don’t know</option>
                     <option value="NOT_FILED">Not filed</option>
                     <option value="PENDING">Pending</option>
@@ -655,7 +917,17 @@ export default function OnboardingPage() {
                   <span className="text-sm font-semibold">
                     Advance parole
                   </span>
-                  <select name="advanceParoleState" className={inputClass}>
+                  <select
+                    name="advanceParoleState"
+                    className={inputClass}
+                    defaultValue={
+                      editing && activeProfile.aosDetails
+                        ? (fieldValue(
+                            activeProfile.aosDetails.advanceParoleState,
+                          ) ?? "UNKNOWN")
+                        : "UNKNOWN"
+                    }
+                  >
                     <option value="UNKNOWN">I don’t know</option>
                     <option value="NOT_FILED">Not filed</option>
                     <option value="PENDING">Pending</option>
@@ -675,7 +947,11 @@ export default function OnboardingPage() {
               <select
                 name="employerType"
                 className={inputClass}
-                defaultValue="CAP_SUBJECT"
+                defaultValue={
+                  editing
+                    ? (fieldValue(activeProfile.employerType) ?? "CAP_SUBJECT")
+                    : "CAP_SUBJECT"
+                }
               >
                 <option value="CAP_SUBJECT">Cap-subject</option>
                 <option value="CAP_EXEMPT">Cap-exempt</option>
@@ -691,7 +967,15 @@ export default function OnboardingPage() {
               <select
                 name="employerEVerify"
                 className={inputClass}
-                defaultValue="unknown"
+                defaultValue={
+                  editing
+                    ? activeProfile.employerEVerify.state === "known"
+                      ? activeProfile.employerEVerify.value
+                        ? "yes"
+                        : "no"
+                      : "unknown"
+                    : "unknown"
+                }
               >
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
@@ -703,11 +987,18 @@ export default function OnboardingPage() {
           {(inUS || outsideUS) && (
             <div className="grid gap-5 sm:grid-cols-2">
               <label>
-                <span className="text-sm font-semibold">Immediate goal</span>
+                <span className="text-sm font-semibold">
+                  What are you focused on right now?
+                </span>
                 <select
                   name="immediateGoal"
                   className={inputClass}
-                  defaultValue="MAINTAIN_STATUS"
+                  defaultValue={
+                    editing
+                      ? (fieldValue(activeProfile.immediateGoal) ??
+                        "STILL_EXPLORING")
+                      : "STILL_EXPLORING"
+                  }
                   key={`${currentStatus}-${f1Stage}-${physicalLocation}`}
                 >
                   {goalOptions.map((option) => (
@@ -716,6 +1007,10 @@ export default function OnboardingPage() {
                     </option>
                   ))}
                 </select>
+                <span className="mt-1.5 block text-xs text-muted">
+                  Not sure is fine. Continuum can still track what you know
+                  today.
+                </span>
               </label>
               <label>
                 <span className="text-sm font-semibold">
@@ -725,6 +1020,11 @@ export default function OnboardingPage() {
                   type="date"
                   name="nextKnownDeadline"
                   className={inputClass}
+                  defaultValue={
+                    editing
+                      ? fieldValue(activeProfile.nextKnownDeadline)
+                      : ""
+                  }
                 />
               </label>
               <label className="sm:col-span-2">
@@ -734,7 +1034,11 @@ export default function OnboardingPage() {
                 <select
                   name="plannedTravel"
                   className={inputClass}
-                  defaultValue="no"
+                  defaultValue={
+                    editing && fieldValue(activeProfile.plannedTravel)
+                      ? "yes"
+                      : "no"
+                  }
                 >
                   <option value="yes">Yes</option>
                   <option value="no">No</option>

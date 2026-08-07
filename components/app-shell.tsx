@@ -7,32 +7,43 @@ import {
   Compass,
   FileUser,
   Leaf,
+  LogOut,
   UserRound,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { personaA, personaB } from "@/lib/demo/personas";
+import type { ImmigrationProfile } from "@/lib/domain/profile";
+import { isDemoUserId } from "@/lib/profile/browser-store";
 import { useProfile } from "@/components/profile-provider";
 
 const links = [
   { href: "/runway", label: "My Runway", icon: Compass },
-  { href: "/alerts/stem-opt-employer-check-2026", label: "Alerts", icon: Bell },
+  { href: "/alerts", label: "Alerts", icon: Bell },
   { href: "/profile", label: "Profile", icon: UserRound },
   { href: "/economics", label: "Judge view", icon: ChartNoAxesCombined },
 ];
 
+function profileLabel(profile: ImmigrationProfile) {
+  const firstName = profile.displayName.split(" ")[0];
+  if (profile.userId === personaA.userId) {
+    return `${firstName} · STEM OPT (demo)`;
+  }
+  if (profile.userId === personaB.userId) {
+    return `${firstName} · H-1B (demo)`;
+  }
+  return `${profile.displayName} · local`;
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { ready, activeUserId, profiles, switchUser } = useProfile();
+  const { ready, activeUserId, profiles, switchUser, signOut } = useProfile();
 
   const options = [
-    { id: personaA.userId, label: "Maya · STEM OPT" },
-    { id: personaB.userId, label: "Daniel · H-1B" },
-    ...Object.values(profiles)
-      .filter((profile) => profile.userId !== personaA.userId && profile.userId !== personaB.userId)
-      .map((profile) => ({
-        id: profile.userId,
-        label: `${profile.displayName} · local`,
-      })),
+    profiles[personaA.userId] ?? personaA,
+    profiles[personaB.userId] ?? personaB,
+    ...Object.values(profiles).filter(
+      (profile) => !isDemoUserId(profile.userId),
+    ),
   ];
 
   return (
@@ -76,14 +87,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className="w-full rounded-xl border border-white/15 bg-white/10 px-3 py-2.5 text-sm text-white"
             aria-label="Switch profile"
           >
-            {options.map((option) => (
-              <option className="text-slate-900" key={option.id} value={option.id}>
-                {option.label}
+            {options.map((profile) => (
+              <option
+                className="text-slate-900"
+                key={profile.userId}
+                value={profile.userId}
+              >
+                {profileLabel(profile)}
               </option>
             ))}
           </select>
+
+          <button
+            type="button"
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-emerald-50/85 hover:bg-white/10"
+            onClick={() => {
+              signOut();
+              router.push("/");
+              router.refresh();
+            }}
+          >
+            <LogOut className="size-3.5" />
+            Sign out
+          </button>
           <p className="mt-3 text-[11px] leading-4 text-emerald-100/50">
-            Switch between sample profiles or your own.
+            Switch profiles anytime. Delete yours from the Profile tab.
           </p>
         </div>
       </aside>

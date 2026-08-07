@@ -37,7 +37,7 @@ export default async function EconomicsPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Judge view</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">Intelligence economics</h1>
-            <p className="mt-2 max-w-2xl text-sm text-muted">Selective memory retrieval gives the model only the facts needed to explain a deterministic result.</p>
+            <p className="mt-2 max-w-2xl text-sm text-muted">The deterministic evaluator selects relevant profile facts. EverOS mirrors structured memory and supports explicit profile reconciliation; it is not queried for every alert.</p>
           </div>
           <span className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${isLive ? "bg-brand-soft text-brand" : "bg-amber-50 text-amber-800"}`}>
             <Database className="mr-1.5 inline size-3.5" />
@@ -92,7 +92,7 @@ export default async function EconomicsPage() {
           <div className="mt-9 grid gap-4 border-t pt-6 sm:grid-cols-3">
             <div><p className="text-xs text-muted">Optimized cost</p><p className="mt-1 font-mono text-sm">${data.actualCost.toFixed(6)}</p></div>
             <div><p className="text-xs text-muted">Naive cost</p><p className="mt-1 font-mono text-sm">${data.naiveCost.toFixed(6)}</p></div>
-            <div><p className="text-xs text-muted">EverOS memory hits</p><p className="mt-1 font-mono text-sm">{data.memoryHits}</p></div>
+            <div><p className="text-xs text-muted">EverOS restores</p><p className="mt-1 font-mono text-sm">{data.memoryHits}</p></div>
           </div>
         </section>
 

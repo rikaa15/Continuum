@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { incompletePersona, personaA, personaB } from "@/lib/demo/personas";
 import { known, unknown } from "@/lib/domain/profile";
+import { confirmHistoryUpdates } from "@/lib/profile/history-updates";
+import { classifyMonitoringResult } from "@/lib/rules/classify";
 import { evaluatePredicateOutcomes, evaluateRule } from "@/lib/rules/evaluate";
+import {
+  fixedAdmissionScenario,
+  niwEvidenceScenario,
+  wageSelectionScenario,
+} from "@/lib/rules/fixtures/monitoring";
 import { studentPolicyRule } from "@/lib/rules/fixtures/student-policy";
 
 describe("evaluateRule", () => {
@@ -106,6 +113,54 @@ describe("evaluateRule", () => {
     };
     expect(evaluateRule(studentPolicyRule, profile).decision).toBe(
       "needs_review",
+    );
+  });
+
+  it("does not let confirmed narrative history alter a rule decision", () => {
+    const withHistory = confirmHistoryUpdates(
+      personaA,
+      "statusHistory",
+      [],
+      [
+        {
+          type: "status",
+          title: "User described a prior status",
+          details: "Confirmed for the timeline only.",
+          date: null,
+          datePrecision: "unknown",
+          confidence: "unknown",
+        },
+      ],
+      () => "history-only",
+    );
+    const before = evaluateRule(studentPolicyRule, personaA);
+    const after = evaluateRule(studentPolicyRule, withHistory);
+    expect(after.decision).toBe(before.decision);
+    expect(after.matchedFacts).toEqual(before.matchedFacts);
+    expect(after.missingFacts).toEqual(before.missingFacts);
+    expect(after.decisionReasons).toEqual(before.decisionReasons);
+  });
+
+  it("classifies personalized monitoring as deadline, reprioritization, or noise", () => {
+    const mayaDeadline = evaluateRule(fixedAdmissionScenario, personaA);
+    const danielNoise = evaluateRule(fixedAdmissionScenario, personaB);
+    const danielReprioritization = evaluateRule(niwEvidenceScenario, personaB);
+    const mayaNoise = evaluateRule(wageSelectionScenario, personaA);
+
+    expect(
+      classifyMonitoringResult(fixedAdmissionScenario, mayaDeadline),
+    ).toBe("deadline");
+    expect(
+      classifyMonitoringResult(fixedAdmissionScenario, danielNoise),
+    ).toBe("noise");
+    expect(
+      classifyMonitoringResult(
+        niwEvidenceScenario,
+        danielReprioritization,
+      ),
+    ).toBe("reprioritization");
+    expect(classifyMonitoringResult(wageSelectionScenario, mayaNoise)).toBe(
+      "noise",
     );
   });
 });
