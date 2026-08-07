@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -79,6 +79,50 @@ export default function OnboardingPage() {
   const needsEVerify =
     isF1 && ["POST_COMPLETION_OPT", "STEM_OPT"].includes(f1Stage);
   const hasI485 = pendingCases.includes("I485");
+  const canPlanStemExtension =
+    isF1 &&
+    ["ENROLLED", "CPT", "POST_COMPLETION_OPT"].includes(f1Stage);
+
+  const goalOptions = useMemo(() => {
+    const options = [
+      {
+        value: "MAINTAIN_STATUS",
+        label: "Maintain or clarify my current situation",
+      },
+    ];
+
+    if (canPlanStemExtension) {
+      options.push({
+        value: "STEM_EXTENSION",
+        label: "Plan a STEM OPT extension",
+      });
+    }
+
+    if (isF1 || inGracePeriod || outsideUS) {
+      options.push({
+        value: "H1B_TRANSITION",
+        label: "Explore an H-1B or work-status transition",
+      });
+    } else if (isH1B) {
+      options.push({
+        value: "H1B_TRANSITION",
+        label: "Change or extend my H-1B employment",
+      });
+    }
+
+    options.push({
+      value: "EB2_NIW",
+      label: "Explore employment-based permanent residence",
+    });
+
+    return options;
+  }, [
+    canPlanStemExtension,
+    isF1,
+    isH1B,
+    inGracePeriod,
+    outsideUS,
+  ]);
 
   function togglePendingCase(type: string, checked: boolean) {
     setPendingCases((current) =>
@@ -664,19 +708,13 @@ export default function OnboardingPage() {
                   name="immediateGoal"
                   className={inputClass}
                   defaultValue="MAINTAIN_STATUS"
+                  key={`${currentStatus}-${f1Stage}-${physicalLocation}`}
                 >
-                  <option value="MAINTAIN_STATUS">
-                    Maintain or clarify my current situation
-                  </option>
-                  <option value="STEM_EXTENSION">
-                    Plan a STEM OPT extension
-                  </option>
-                  <option value="H1B_TRANSITION">
-                    Explore an H-1B or work-status transition
-                  </option>
-                  <option value="EB2_NIW">
-                    Explore employment-based permanent residence
-                  </option>
+                  {goalOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label>
