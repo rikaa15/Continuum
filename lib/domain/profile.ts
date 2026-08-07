@@ -65,12 +65,55 @@ export const f1StageSchema = z.enum([
   "NOT_APPLICABLE",
 ]);
 
+export const physicalLocationSchema = z.enum(["IN_US", "OUTSIDE_US"]);
+
+export const currentBasisSchema = z.enum([
+  "NONIMMIGRANT_STATUS",
+  "PENDING_ADJUSTMENT_ONLY",
+  "WORKER_GRACE_PERIOD",
+  "TPS",
+  "PAROLE",
+  "ASYLUM_RELATED",
+  "PERMANENT_RESIDENT",
+  "OTHER",
+  "UNKNOWN",
+]);
+
+export const pendingCaseSchema = z.object({
+  type: z.enum(["I485", "I140", "I130", "ASYLUM", "TPS", "PAROLE"]),
+  status: z.enum(["PENDING", "APPROVED"]),
+});
+
+export const aosDetailsSchema = z.object({
+  basis: knownValue(
+    z.enum(["EMPLOYMENT", "FAMILY", "DIVERSITY", "OTHER", "UNKNOWN"]),
+  ),
+  receiptDate: knownValue(z.string().date()),
+  priorityDate: knownValue(z.string().date()),
+  stage: knownValue(
+    z.enum(["RECEIPT", "BIOMETRICS", "RFE", "INTERVIEW", "PENDING_DECISION"]),
+  ),
+  eadState: knownValue(
+    z.enum(["NOT_FILED", "PENDING", "APPROVED", "EXPIRED", "UNKNOWN"]),
+  ),
+  advanceParoleState: knownValue(
+    z.enum(["NOT_FILED", "PENDING", "APPROVED", "EXPIRED", "UNKNOWN"]),
+  ),
+});
+
 export const profileSchema = z.object({
   userId: z.string().min(1),
   displayName: z.string().min(1),
   profileVersion: z.number().int().positive(),
   updatedAt: z.string().datetime(),
+  physicalLocation: knownValue(physicalLocationSchema),
+  currentBasis: knownValue(currentBasisSchema),
   currentStatus: knownValue(currentStatusSchema),
+  priorStatus: knownValue(currentStatusSchema),
+  targetClassification: knownValue(currentStatusSchema),
+  employmentEndDate: knownValue(z.string().date()),
+  pendingCases: z.array(pendingCaseSchema).max(6),
+  aosDetails: aosDetailsSchema.nullable(),
   f1Stage: knownValue(f1StageSchema),
   validUntil: knownValue(z.string().date()),
   immediateGoal: knownValue(

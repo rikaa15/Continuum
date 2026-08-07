@@ -31,4 +31,16 @@ describe("profileSchema", () => {
       value: "STEM_OPT",
     });
   });
+
+  it("keeps physical location, current basis, and pending cases separate", () => {
+    expect(personaA.physicalLocation).toMatchObject({
+      state: "known",
+      value: "IN_US",
+    });
+    expect(personaA.currentBasis).toMatchObject({
+      state: "known",
+      value: "NONIMMIGRANT_STATUS",
+    });
+    expect(personaA.pendingCases).toEqual([]);
+  });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { incompletePersona, personaA, personaB } from "@/lib/demo/personas";
+import { known, unknown } from "@/lib/domain/profile";
 import { evaluatePredicateOutcomes, evaluateRule } from "@/lib/rules/evaluate";
 import { studentPolicyRule } from "@/lib/rules/fixtures/student-policy";
 
@@ -48,5 +49,63 @@ describe("evaluateRule", () => {
         "proposed",
       ),
     ).toBe("needs_review");
+  });
+
+  it("supports an H-1B profile with overlapping I-140 and I-485 cases", () => {
+    expect(personaB.pendingCases).toEqual([
+      { type: "I140", status: "APPROVED" },
+      { type: "I485", status: "PENDING" },
+    ]);
+    expect(evaluateRule(studentPolicyRule, personaB).decision).toBe(
+      "not_affected",
+    );
+  });
+
+  it("excludes an adjustment-only authorized-stay profile", () => {
+    const profile = {
+      ...personaB,
+      currentBasis: known("PENDING_ADJUSTMENT_ONLY" as const),
+      currentStatus: unknown("No underlying nonimmigrant status"),
+    };
+    expect(evaluateRule(studentPolicyRule, profile).decision).toBe(
+      "not_affected",
+    );
+  });
+
+  it("excludes a worker grace-period profile", () => {
+    const profile = {
+      ...personaB,
+      currentBasis: known("WORKER_GRACE_PERIOD" as const),
+      currentStatus: unknown("Employment ended"),
+      priorStatus: known("H1B" as const),
+      employmentEndDate: known("2026-08-01"),
+    };
+    expect(evaluateRule(studentPolicyRule, profile).decision).toBe(
+      "not_affected",
+    );
+  });
+
+  it("excludes an outside-U.S. target pathway", () => {
+    const profile = {
+      ...personaB,
+      physicalLocation: known("OUTSIDE_US" as const),
+      currentBasis: unknown("Outside the United States"),
+      currentStatus: unknown("No current U.S. status"),
+      targetClassification: known("O1" as const),
+    };
+    expect(evaluateRule(studentPolicyRule, profile).decision).toBe(
+      "not_affected",
+    );
+  });
+
+  it("requires review when the current U.S. basis is unknown", () => {
+    const profile = {
+      ...personaA,
+      currentBasis: unknown("User is not sure"),
+      currentStatus: unknown("User is not sure"),
+    };
+    expect(evaluateRule(studentPolicyRule, profile).decision).toBe(
+      "needs_review",
+    );
   });
 });

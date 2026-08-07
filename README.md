@@ -29,9 +29,16 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Without external credentials, the product uses a clearly marked synthetic
-fallback. That fallback is useful for UI development but is not acceptable as
-submission evidence.
+### Demo data model
+
+User profiles are stored in the browser with `localStorage`. No login or
+database is required for the hackathon demo. Judges can open the deployed site,
+create or switch profiles, and their facts stay on their device. Intake records
+physical location, current U.S. basis, underlying classification, and pending
+applications separately so overlapping cases are not forced into one answer.
+
+EverOS is an optional server-side mirror used for the memory pitch. OpenAI
+powers explanations. Snowflake remains optional and currently projected.
 
 ### EverOS
 
@@ -41,8 +48,9 @@ Continuum uses the hosted unified v2 flow:
 2. `POST /api/v2/memory/flush`
 3. `POST /api/v2/memory/search`
 
-The stored profile is a versioned structured snapshot. Original content is
-retrieved and validated before rule evaluation.
+The browser profile is the demo source of truth. A validated, versioned snapshot
+is optionally mirrored to EverOS so the memory integration remains visible
+without making semantic retrieval authoritative for legal decisions.
 
 ### Snowflake
 
@@ -88,11 +96,13 @@ complete eligibility determination or as a newly enacted policy.
 npm run lint
 npm test
 npm run build
+npm run smoke:everos
 npm run smoke:live
 ```
 
-`smoke:live` requires credentials and confirms EverOS health plus a real
-Snowflake ledger query.
+`smoke:everos` verifies a Cloud add/flush/search round trip and removes its test
+memory. `smoke:live` additionally requires Snowflake credentials and confirms a
+real ledger query.
 
 ## Three-minute demo
 

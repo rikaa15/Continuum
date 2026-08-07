@@ -10,6 +10,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "seed:everos": "node --env-file=.env.local --import tsx scripts/seed-everos.ts",
+    "smoke:everos": "node --env-file=.env.local scripts/everos-smoke.mjs",
     "smoke:live": "node scripts/live-smoke.mjs",
     "rehearse": "node scripts/rehearse-demo.mjs"
   },
@@ -31,6 +33,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.11",
     "typescript": "^5",
     "vitest": "^4.1.10"
   }

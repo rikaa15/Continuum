@@ -20,12 +20,44 @@ export const studentPolicyRule: RuleFixture = {
   escalationTarget: "Your designated school official (DSO) or a qualified attorney",
   predicates: [
     {
+      id: "exclude-outside-us",
+      label: "User is currently outside the United States",
+      field: "physicalLocation",
+      role: "exclusion",
+      evaluate: (profile) => {
+        if (profile.physicalLocation.state === "unknown") return "unknown";
+        return profile.physicalLocation.value === "OUTSIDE_US";
+      },
+      describeMatch: () => "Profile records current location outside the U.S.",
+    },
+    {
+      id: "exclude-non-status-basis",
+      label: "Current U.S. basis is not a nonimmigrant status",
+      field: "currentBasis",
+      role: "exclusion",
+      evaluate: (profile) => {
+        if (profile.currentBasis.state === "unknown") return "unknown";
+        if (
+          profile.currentBasis.value === "OTHER" ||
+          profile.currentBasis.value === "UNKNOWN"
+        ) {
+          return "unknown";
+        }
+        return profile.currentBasis.value !== "NONIMMIGRANT_STATUS";
+      },
+      describeMatch: (profile) =>
+        profile.currentBasis.state === "known"
+          ? `Current basis: ${profile.currentBasis.value.replaceAll("_", " ")}`
+          : "Current basis is unknown",
+    },
+    {
       id: "exclude-non-student",
       label: "Current context is outside F-1 practical training",
       field: "currentStatus",
       role: "exclusion",
       evaluate: (profile) => {
         if (profile.currentStatus.state === "unknown") return "unknown";
+        if (profile.currentStatus.value === "OTHER") return "unknown";
         return profile.currentStatus.value !== "F1";
       },
       describeMatch: (profile) =>

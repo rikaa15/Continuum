@@ -14,6 +14,9 @@ type EverOSConfig = {
 function getConfig(): EverOSConfig {
   const baseUrl = process.env.EVEROS_BASE_URL;
   if (!baseUrl) throw new Error("EVEROS_BASE_URL is not configured");
+  if (baseUrl.includes("api.evermind.ai") && !process.env.EVEROS_API_KEY) {
+    throw new Error("EVEROS_API_KEY is not configured");
+  }
   return {
     baseUrl: baseUrl.replace(/\/$/, ""),
     apiKey: process.env.EVEROS_API_KEY,
@@ -48,7 +51,34 @@ function findProfilePayload(value: unknown): ImmigrationProfile | null {
   if (typeof value === "string") {
     const index = value.indexOf(PROFILE_PREFIX);
     if (index === -1) return null;
-    const candidate = value.slice(index + PROFILE_PREFIX.length).trim();
+    const remainder = value.slice(index + PROFILE_PREFIX.length).trim();
+    const firstBrace = remainder.indexOf("{");
+    if (firstBrace === -1) return null;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let finalBrace = -1;
+    for (let cursor = firstBrace; cursor < remainder.length; cursor += 1) {
+      const character = remainder[cursor];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (character === "\\" && inString) {
+        escaped = true;
+        continue;
+      }
+      if (character === '"') inString = !inString;
+      if (inString) continue;
+      if (character === "{") depth += 1;
+      if (character === "}") depth -= 1;
+      if (depth === 0) {
+        finalBrace = cursor;
+        break;
+      }
+    }
+    if (finalBrace === -1) return null;
+    const candidate = remainder.slice(firstBrace, finalBrace + 1);
     try {
       return profileSchema.parse(JSON.parse(candidate));
     } catch {
@@ -62,6 +92,8 @@ function findProfilePayload(value: unknown): ImmigrationProfile | null {
     }
   }
   if (value && typeof value === "object") {
+    const directProfile = profileSchema.safeParse(value);
+    if (directProfile.success) return directProfile.data;
     for (const item of Object.values(value)) {
       const profile = findProfilePayload(item);
       if (profile) return profile;
@@ -75,7 +107,7 @@ export async function saveProfileToEverOS(profile: ImmigrationProfile) {
   const sessionId = `continuum-profile-${profile.userId}`;
   await request("/api/v2/memory/add", {
     session_id: sessionId,
-    user_id: profile.userId,
+    async_mode: false,
     messages: [
       {
         sender_id: profile.userId,
@@ -84,10 +116,6 @@ export async function saveProfileToEverOS(profile: ImmigrationProfile) {
         content: `${PROFILE_PREFIX}${JSON.stringify(profile)}`,
       },
     ],
-  });
-  await request("/api/v2/memory/flush", {
-    session_id: sessionId,
-    user_id: profile.userId,
   });
   return { sessionId };
 }
@@ -98,8 +126,8 @@ export async function retrieveProfileFromEverOS(userId: string) {
     query: `${PROFILE_PREFIX} latest canonical immigration profile`,
     method: "hybrid",
     top_k: 10,
-    include_original_data: true,
-    filters: { session_id: { eq: `continuum-profile-${userId}` } },
+    include_profile: true,
+    filters: { session_id: `continuum-profile-${userId}` },
   });
   const profile = findProfilePayload(response);
   if (!profile) {
@@ -109,5 +137,7 @@ export async function retrieveProfileFromEverOS(userId: string) {
 }
 
 export function isEverOSConfigured() {
-  return Boolean(process.env.EVEROS_BASE_URL);
+  const baseUrl = process.env.EVEROS_BASE_URL;
+  if (!baseUrl) return false;
+  return !baseUrl.includes("api.evermind.ai") || Boolean(process.env.EVEROS_API_KEY);
 }

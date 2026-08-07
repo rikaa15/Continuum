@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   Bell,
@@ -7,9 +9,9 @@ import {
   Leaf,
   UserRound,
 } from "lucide-react";
-import { switchPersona } from "@/app/actions";
+import { useRouter } from "next/navigation";
 import { personaA, personaB } from "@/lib/demo/personas";
-import { getActiveUserId } from "@/lib/profile/service";
+import { useProfile } from "@/components/profile-provider";
 
 const links = [
   { href: "/runway", label: "My Runway", icon: Compass },
@@ -18,8 +20,20 @@ const links = [
   { href: "/economics", label: "Judge view", icon: ChartNoAxesCombined },
 ];
 
-export async function AppShell({ children }: { children: React.ReactNode }) {
-  const activeUserId = await getActiveUserId();
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const { ready, activeUserId, profiles, switchUser } = useProfile();
+
+  const options = [
+    { id: personaA.userId, label: "Maya · STEM OPT" },
+    { id: personaB.userId, label: "Daniel · H-1B" },
+    ...Object.values(profiles)
+      .filter((profile) => profile.userId !== personaA.userId && profile.userId !== personaB.userId)
+      .map((profile) => ({
+        id: profile.userId,
+        label: `${profile.displayName} · local`,
+      })),
+  ];
 
   return (
     <div className="min-h-screen bg-background lg:grid lg:grid-cols-[250px_1fr]">
@@ -50,28 +64,26 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mt-6 border-t border-white/10 pt-6 lg:mt-auto">
           <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-100/55">
             <FileUser className="size-3.5" />
-            Demo persona
+            Profile
           </div>
-          <form action={switchPersona}>
-            <select
-              name="userId"
-              defaultValue={activeUserId}
-              className="w-full rounded-xl border border-white/15 bg-white/10 px-3 py-2.5 text-sm text-white"
-              aria-label="Switch demo persona"
-            >
-              <option className="text-slate-900" value={personaA.userId}>
-                Maya · STEM OPT
+          <select
+            value={ready ? activeUserId : personaA.userId}
+            onChange={(event) => {
+              switchUser(event.target.value);
+              router.push("/runway");
+              router.refresh();
+            }}
+            className="w-full rounded-xl border border-white/15 bg-white/10 px-3 py-2.5 text-sm text-white"
+            aria-label="Switch profile"
+          >
+            {options.map((option) => (
+              <option className="text-slate-900" key={option.id} value={option.id}>
+                {option.label}
               </option>
-              <option className="text-slate-900" value={personaB.userId}>
-                Daniel · H-1B
-              </option>
-            </select>
-            <button className="mt-2 w-full rounded-xl bg-white/12 px-3 py-2 text-xs font-semibold hover:bg-white/20">
-              Switch profile
-            </button>
-          </form>
+            ))}
+          </select>
           <p className="mt-3 text-[11px] leading-4 text-emerald-100/50">
-            Synthetic profiles for demonstration only.
+            Switch between sample profiles or your own.
           </p>
         </div>
       </aside>

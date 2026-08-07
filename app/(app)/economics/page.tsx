@@ -41,7 +41,7 @@ export default async function EconomicsPage() {
           </div>
           <span className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${isLive ? "bg-brand-soft text-brand" : "bg-amber-50 text-amber-800"}`}>
             <Database className="mr-1.5 inline size-3.5" />
-            {isLive ? "Live Snowflake query" : "Projected demo fallback"}
+            {isLive ? "Live Snowflake query" : "Projected sample"}
           </span>
         </header>
 
